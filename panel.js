@@ -34,7 +34,7 @@ function itemRow(t,isSub){
   const over=!d&&t.due_date&&dayDiff(t.due_date)<0;
   const stripe=d?'transparent':(t.priority?PCOL[t.priority]:'transparent');
   const bg=over?rgba('#E24B4A',.06):t.status==="Stuck"?rgba('#E24B4A',.04):'transparent';
-  const metas=[duePill(t),t.assignee?`<span class="meta"><span class="av">${esc(initials(t.assignee))}</span>${esc(t.assignee)}</span>`:'',!isSub&&subs.length?`<span class="meta"><i class="ti ti-subtask" aria-hidden="true"></i>${sd}/${subs.length}</span>`:'',t.notes?`<span class="meta"><i class="ti ti-notes" aria-hidden="true"></i>Notes</span>`:''].filter(Boolean).join('');
+  const metas=[duePill(t),t.cm?`<span class="meta" title="Client-matter" style="font-variant-numeric:tabular-nums"><i class="ti ti-hash" aria-hidden="true"></i>C/M ${esc(t.cm)}</span>`:'',t.assignee?`<span class="meta"><span class="av">${esc(initials(t.assignee))}</span>${esc(t.assignee)}</span>`:'',!isSub&&subs.length?`<span class="meta"><i class="ti ti-subtask" aria-hidden="true"></i>${sd}/${subs.length}</span>`:'',t.notes?`<span class="meta"><i class="ti ti-notes" aria-hidden="true"></i>Notes</span>`:''].filter(Boolean).join('');
   let h=`<div class="row" style="border-left-color:${stripe};background:${bg}"><button class="ck" data-act="done" data-id="${t.id}" aria-label="${d?'Mark not done':'Mark done'}" style="${d?'color:var(--text-success)':''}"><i class="ti ti-${d?'circle-check':'circle'}" aria-hidden="true"></i></button>
   <div data-act="open" data-id="${t.id}" style="flex:1;min-width:0;cursor:pointer"><div class="${d?'done':''}" style="line-height:1.4;${isSub?'font-size:13px':''}">${esc(t.title)}</div>${metas?`<div style="display:flex;flex-wrap:wrap;gap:8px 12px;margin-top:5px;align-items:center">${metas}</div>`:''}</div>
   <div style="display:flex;align-items:center;gap:6px;flex-shrink:0">${d?'':priPill(t.priority)}${statusPill(t.status||"Not Started",t.id)}
@@ -82,7 +82,7 @@ function render(){
   b.sections.forEach((s,i)=>{if(ui.filter&&!s.tasks.some(matchF))return;const c=ui.col.has(s.id),col=secColor(s,i),tot=s.tasks.length,dn=s.tasks.filter(t=>t.status==="Done").length,pct=tot?Math.round(dn/tot*100):0;
     h+=`<div class="sec" style="border-color:${rgba(col,.45)}"><div style="display:flex;align-items:center;gap:8px;padding:10px 12px 10px 10px;background:${rgba(col,.12)};border-left:4px solid ${col};border-radius:0">
     <button class="ib" data-act="col" data-id="${s.id}" aria-label="${c?'Expand':'Collapse'} section"><i class="ti ti-chevron-${c?'right':'down'}" aria-hidden="true"></i></button>
-    ${nameOrInput('section',s.id,s.name,'font-weight:500;font-size:15px')}
+    ${nameOrInput('section',s.id,s.name,'font-weight:500;font-size:15px')}${s.cm?`<span class="pill" title="Client-matter" style="background:var(--surface-1);color:var(--text-secondary);border:.5px solid var(--border);font-variant-numeric:tabular-nums">C/M ${esc(s.cm)}</span>`:''}
     <span class="pill" style="background:${rgba(col,.22)};color:var(--text-primary)">${tot-dn} open${dn?` · ${dn} done`:''}</span>
     <span style="flex:1"></span>
     <button class="dot" data-act="color" data-id="${s.id}" data-i="${i}" aria-label="Change section color" title="Change color" style="background:${col}"></button>
