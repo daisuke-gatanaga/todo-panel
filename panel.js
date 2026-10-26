@@ -1,13 +1,38 @@
 (function(){
-function mount(DATA){
-if(!document.getElementById('td-css')){const st=document.createElement('style');st.id='td-css';st.textContent="#td{font-size:14px;padding:.25rem 0 .5rem}#td button{font-family:inherit}#td .seg{display:inline-flex;gap:2px;padding:3px;background:var(--surface-1);border-radius:10px;flex-wrap:wrap}#td .tab{padding:5px 14px;border-radius:8px;border:.5px solid transparent;background:transparent;color:var(--text-secondary);cursor:pointer;font-size:13px}#td .tab:hover{color:var(--text-primary)}#td .tab.on{background:var(--surface-2);color:var(--text-primary);border-color:var(--border);font-weight:500}#td .ib{background:transparent;border:none;color:var(--text-muted);cursor:pointer;padding:4px;font-size:16px;line-height:1;border-radius:6px}#td .ib:hover{color:var(--text-primary);background:var(--surface-1)}#td .stat{border-radius:var(--radius);padding:10px 14px}#td .stat p{margin:0}#td button.stat{border:1.5px solid transparent;text-align:left;cursor:pointer;width:100%;height:auto;font:inherit;transition:opacity .15s,filter .15s,box-shadow .15s}#td button.stat:hover{filter:brightness(.97)}#td .stats.filtering button.stat:not(.on){filter:grayscale(1);opacity:.45}#td .stats.filtering button.stat:not(.on):hover{opacity:.75}#td button.stat.on{border-color:currentColor;box-shadow:0 0 0 3px var(--surface-2),0 0 0 5px currentColor}#td .fbar{display:flex;align-items:center;gap:8px;margin:0 0 12px;padding:8px 12px;border-radius:var(--radius);font-size:13px;font-weight:500;border-left:4px solid currentColor}#td .sec{border:.5px solid var(--border);border-radius:12px;margin-bottom:14px;background:var(--surface-2);overflow:hidden}#td .row{display:flex;align-items:flex-start;gap:10px;padding:10px 14px 10px 11px;border-top:.5px solid var(--border);border-left:3px solid transparent;border-radius:0}#td .row:hover{filter:brightness(.98)}#td .sub .row{padding-left:41px}#td .pill{display:inline-flex;align-items:center;gap:4px;font-size:11px;padding:2px 9px;border-radius:999px;white-space:nowrap;font-weight:500}#td .meta{font-size:12px;color:var(--text-muted);display:inline-flex;align-items:center;gap:4px;white-space:nowrap}#td .ck{background:transparent;border:none;cursor:pointer;padding:0;font-size:20px;line-height:1;color:var(--text-muted)}#td .ck:hover{color:var(--text-success)}#td .av{width:20px;height:20px;border-radius:50%;background:var(--bg-accent);color:var(--text-accent);font-size:10px;font-weight:500;display:inline-flex;align-items:center;justify-content:center}#td .ed{padding:12px 14px 14px 44px;background:var(--surface-1);display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px}#td .ed label{font-size:12px;color:var(--text-secondary);display:flex;flex-direction:column;gap:4px}#td .ed input,#td .ed select,#td .ed textarea{width:100%;box-sizing:border-box;font-size:13px}#td .add{width:100%;box-sizing:border-box;border:none;border-top:.5px solid var(--border);background:transparent;font-size:13px;padding:10px 14px 10px 44px;height:auto;border-radius:0}#td .add:focus{background:var(--surface-1);outline:none;box-shadow:none}#td .done{text-decoration:line-through;color:var(--text-muted)}#td .dot{width:14px;height:14px;border-radius:50%;border:none;cursor:pointer;padding:0;flex-shrink:0}#td button.spill{height:auto;cursor:pointer;font-family:inherit;line-height:1.5;border:.5px solid transparent}#td button.spill:hover{filter:brightness(.94)}#td .sw{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:4px;vertical-align:-1px}";document.head.appendChild(st)}
-let data=DATA;
+/* Change list, ported from todo_repo.diff() so the panel can show what a save will do. */
+const FIELDS=["title","status","priority","due_date","assignee","notes","cm","theme"];
+function tdIndex(d){const B={},S={},T={};for(const b of d.boards||[]){B[b.id]=b;for(const s of b.sections||[]){S[s.id]=[b.name,s];for(const t of s.tasks||[]){T[t.id]=[b.name+' / '+s.name,t];for(const st of t.subtasks||[])T[st.id]=[b.name+' / '+s.name+' > '+t.title,st]}}}return[B,S,T]}
+function tdDiff(o,n){const[ob,os,ot]=tdIndex(o),[nb,ns,nt]=tdIndex(n),L=[],nv=x=>x===undefined?null:x,v=x=>(x===undefined||x===null||x==='')?'-':x;
+ for(const k in nb){if(!(k in ob))L.push(`Add board "${nb[k].name}"`);else if(ob[k].name!==nb[k].name)L.push(`Rename board "${ob[k].name}" -> "${nb[k].name}"`)}
+ for(const k in ob)if(!(k in nb))L.push(`Delete board "${ob[k].name}"`);
+ for(const k in ns){const[bn,s]=ns[k];if(!(k in os)){L.push(`Add section "${bn} / ${s.name}"`);continue}const o=os[k][1];
+  if(o.name!==s.name)L.push(`Rename section "${o.name}" -> "${s.name}"`);if(nv(o.color)!==nv(s.color))L.push(`Recolor section "${s.name}"`);if(nv(o.cm)!==nv(s.cm))L.push(`Set C/M on section "${s.name}": ${v(o.cm)} -> ${v(s.cm)}`)}
+ for(const k in os)if(!(k in ns)){const[bn,s]=os[k];L.push(`Delete section "${bn} / ${s.name}" (${(s.tasks||[]).length} task(s))`)}
+ for(const k in nt){const[p,t]=nt[k];if(!(k in ot)){L.push(`Add "${t.title}" (${p})`);continue}const o=ot[k][1],ch=[];
+  for(const f of FIELDS)if(nv(o[f])!==nv(t[f]))ch.push(f==='notes'?'notes edited':`${f}: ${v(o[f])} -> ${v(t[f])}`);if(ch.length)L.push(`Update "${t.title}": `+ch.join('; '))}
+ for(const k in ot)if(!(k in nt)){const[p,t]=ot[k];L.push(`Delete "${t.title}" (${p})`)}
+ return L}
+let CUR=null;
+const b64dec=s=>new TextDecoder().decode(Uint8Array.from(atob(s.replace(/\s/g,'')),c=>c.charCodeAt(0)));
+function b64enc(str){const u=new TextEncoder().encode(str);let b='';for(let i=0;i<u.length;i+=0x8000)b+=String.fromCharCode.apply(null,u.subarray(i,i+0x8000));return btoa(b)}
+/* mount(DATA, OPTS): OPTS.direct = {repo, path?, branch?} turns on direct commits to GitHub (standalone file opened
+   in a browser). The token is entered by the user at runtime and kept in this browser's localStorage; it is never
+   part of this code or the data. Without OPTS.direct (the chat widget) Save sends the chat message as before. */
+function mount(DATA,OPTS){
+if(!document.getElementById('td-css')){const st=document.createElement('style');st.id='td-css';st.textContent="#td{font-size:14px;padding:.25rem 0 .5rem}#td button{font-family:inherit}#td .seg{display:inline-flex;gap:2px;padding:3px;background:var(--surface-1);border-radius:10px;flex-wrap:wrap}#td .tab{padding:5px 14px;border-radius:8px;border:.5px solid transparent;background:transparent;color:var(--text-secondary);cursor:pointer;font-size:13px}#td .tab:hover{color:var(--text-primary)}#td .tab.on{background:var(--surface-2);color:var(--text-primary);border-color:var(--border);font-weight:500}#td .ib{background:transparent;border:none;color:var(--text-muted);cursor:pointer;padding:4px;font-size:16px;line-height:1;border-radius:6px}#td .ib:hover{color:var(--text-primary);background:var(--surface-1)}#td .stat{border-radius:var(--radius);padding:10px 14px}#td .stat p{margin:0}#td button.stat{border:1.5px solid transparent;text-align:left;cursor:pointer;width:100%;height:auto;font:inherit;transition:opacity .15s,filter .15s,box-shadow .15s}#td button.stat:hover{filter:brightness(.97)}#td .stats.filtering button.stat:not(.on){filter:grayscale(1);opacity:.45}#td .stats.filtering button.stat:not(.on):hover{opacity:.75}#td button.stat.on{border-color:currentColor;box-shadow:0 0 0 3px var(--surface-2),0 0 0 5px currentColor}#td .fbar{display:flex;align-items:center;gap:8px;margin:0 0 12px;padding:8px 12px;border-radius:var(--radius);font-size:13px;font-weight:500;border-left:4px solid currentColor}#td .sec{border:.5px solid var(--border);border-radius:12px;margin-bottom:14px;background:var(--surface-2);overflow:hidden}#td .row{display:flex;align-items:flex-start;gap:10px;padding:10px 14px 10px 11px;border-top:.5px solid var(--border);border-left:3px solid transparent;border-radius:0}#td .row:hover{filter:brightness(.98)}#td .sub .row{padding-left:41px}#td .pill{display:inline-flex;align-items:center;gap:4px;font-size:11px;padding:2px 9px;border-radius:999px;white-space:nowrap;font-weight:500}#td .meta{font-size:12px;color:var(--text-muted);display:inline-flex;align-items:center;gap:4px;white-space:nowrap}#td .ck{background:transparent;border:none;cursor:pointer;padding:0;font-size:20px;line-height:1;color:var(--text-muted)}#td .ck:hover{color:var(--text-success)}#td .av{width:20px;height:20px;border-radius:50%;background:var(--bg-accent);color:var(--text-accent);font-size:10px;font-weight:500;display:inline-flex;align-items:center;justify-content:center}#td .ed{padding:12px 14px 14px 44px;background:var(--surface-1);display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px}#td .ed label{font-size:12px;color:var(--text-secondary);display:flex;flex-direction:column;gap:4px}#td .ed input,#td .ed select,#td .ed textarea{width:100%;box-sizing:border-box;font-size:13px}#td .add{width:100%;box-sizing:border-box;border:none;border-top:.5px solid var(--border);background:transparent;font-size:13px;padding:10px 14px 10px 44px;height:auto;border-radius:0}#td .add:focus{background:var(--surface-1);outline:none;box-shadow:none}#td .done{text-decoration:line-through;color:var(--text-muted)}#td .dot{width:14px;height:14px;border-radius:50%;border:none;cursor:pointer;padding:0;flex-shrink:0}#td button.spill{height:auto;cursor:pointer;font-family:inherit;line-height:1.5;border:.5px solid transparent}#td button.spill:hover{filter:brightness(.94)}#td .sw{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:4px;vertical-align:-1px}#td .ghn{padding:10px 12px;border-radius:var(--radius);margin:12px 0 0;font-size:13px;border:.5px solid var(--border-strong);line-height:1.45}#td .ghn ul{margin:6px 0 8px;padding-left:18px;max-height:220px;overflow:auto;font-size:12px}#td .ghn p{margin:0 0 6px}#td .ghh{font-size:12px;color:var(--text-muted);margin:6px 0 0!important}#td .ghn a{color:var(--text-accent)}#td .tb{font-size:13px;height:32px;padding:0 12px;border-radius:8px;border:.5px solid var(--border-strong);background:var(--surface-2);color:var(--text-primary);cursor:pointer;display:inline-flex;align-items:center;gap:5px}#td .tb:hover{background:var(--surface-1)}#td .tb.warn{color:var(--text-danger);border-color:var(--text-danger)}#td .ghn input[data-token]{flex:1;min-width:220px;height:30px;box-sizing:border-box;padding:0 8px;border:.5px solid var(--border-strong);border-radius:6px;background:var(--surface-2);color:var(--text-primary)}";document.head.appendChild(st)}
+let data=DATA;CUR=data;
+const D=(OPTS&&OPTS.direct&&OPTS.direct.repo)?Object.assign({path:'todos.json'},OPTS.direct):null;
+const PID=(DATA._panel_id||'p')+(D?'.'+Math.random().toString(36).slice(2,6):'');
+if(D)data._panel_id=PID;
+const TKEY='tdPanel.githubToken';let memTok='';
+const tokGet=()=>{try{return localStorage.getItem(TKEY)||memTok}catch(e){return memTok}};
+const tokPut=v=>{memTok=v||'';try{v?localStorage.setItem(TKEY,v):localStorage.removeItem(TKEY);return true}catch(e){return false}};
 const STATUS=["Not Started","In Progress","On Hold","Stuck","Done"],PRI=["Low","Medium","High","Critical"];
 const SC={"Not Started":["--surface-1","--text-secondary","ti-circle-dashed"],"In Progress":["--bg-accent","--text-accent","ti-progress"],"On Hold":["--bg-warning","--text-warning","ti-player-pause"],"Stuck":["--bg-danger","--text-danger","ti-alert-triangle"],"Done":["--bg-success","--text-success","ti-check"]};
 const PCOL={"Critical":"#E24B4A","High":"#EF9F27","Medium":"#378ADD","Low":"#B4B2A9"};
 const SECCOL=["#7F77DD","#1D9E75","#D85A30","#D4537E","#378ADD","#BA7517","#639922"];
 const rgba=(h,a)=>{const n=parseInt(h.slice(1),16);return `rgba(${n>>16},${n>>8&255},${n&255},${a})`};
-const ui={board:data.boards[0]&&data.boards[0].id,open:new Set(),col:new Set(),edit:null,confirm:null,showDone:true,dirty:false,sent:false,focus:null,filter:null};
+const ui={board:data.boards[0]&&data.boards[0].id,open:new Set(),col:new Set(),edit:null,confirm:null,showDone:true,dirty:false,sent:false,focus:null,filter:null,rev:0,gh:{state:D?'idle':'',note:null,at:null}};
 const root=document.getElementById('td');
 const uid=p=>p+Math.random().toString(36).slice(2,10);
 const now=()=>new Date().toISOString();
@@ -19,7 +44,7 @@ const fmt=iso=>{if(!iso)return'';const d=new Date(iso);return d.toLocaleDateStri
 const initials=n=>n.split(/[\s.]+/).filter(Boolean).map(w=>w[0]).slice(0,2).join('').toUpperCase();
 const board=()=>data.boards.find(b=>b.id===ui.board);
 const secColor=(s,i)=>s.color||SECCOL[i%SECCOL.length];
-function touch(){ui.dirty=true;ui.sent=false;data.updated_at=now()}
+function touch(){ui.dirty=true;ui.sent=false;ui.rev++;data.updated_at=now()}
 function findItem(id){for(const b of data.boards)for(const s of b.sections)for(const t of s.tasks){if(t.id===id)return{item:t,list:s.tasks};const st=(t.subtasks||[]).find(x=>x.id===id);if(st)return{item:st,list:t.subtasks}}return{}}
 function findSec(id){for(const b of data.boards){const s=b.sections.find(x=>x.id===id);if(s)return{s,b}}return{}}
 function statusPill(s,id){const c=SC[s]||SC["Not Started"];const nx=STATUS[(STATUS.indexOf(s)+1)%STATUS.length];return `<button class="pill spill" data-act="cycle" data-id="${id}" title="Click to change to ${nx}" aria-label="Status: ${esc(s)}. Click to change to ${nx}" style="background:var(${c[0]});color:var(${c[1]});${s==="Not Started"?'border:.5px solid var(--border-strong)':''}"><i class="ti ${c[2]}" aria-hidden="true"></i>${esc(s)}</button>`}
@@ -63,13 +88,63 @@ function stats(b){let o=0,w=0,od=0,dn=0;for(const s of b.sections)for(const t of
   <div class="meta" style="margin-bottom:16px;gap:12px;flex-wrap:wrap">Priority stripe:${PRI.slice().reverse().map(p=>`<span><span class="sw" style="background:${PCOL[p]}"></span>${p}</span>`).join('')}</div>`}
 function doneCount(b){let n=0;for(const s of b.sections)for(const t of s.tasks){if(t.status==="Done"){n++;continue}n+=(t.subtasks||[]).filter(x=>x.status==="Done").length}return n}
 function clearBtn(b){const n=doneCount(b);if(!n)return'';return ui.confirm==='clr'+b.id?`<button data-act="clrdone" style="font-size:13px;height:30px;margin-right:6px;color:var(--text-danger);border-color:var(--border-danger)"><i class="ti ti-trash" aria-hidden="true"></i> Delete ${n} completed</button>`:`<button data-act="ask" data-key="clr${b.id}" style="font-size:13px;height:30px;margin-right:6px"><i class="ti ti-trash" aria-hidden="true"></i> Clear completed</button>`}
+/* ---- Direct GitHub commits (standalone file only) ---- */
+const GHAPI='https://api.github.com';let busy=false;
+const ghPath=()=>`/repos/${D.repo}/contents/${D.path.split('/').map(encodeURIComponent).join('/')}`;
+const ghRef=()=>D.branch?'?ref='+encodeURIComponent(D.branch):'';
+function ghErr(s,j){const m={401:'GitHub rejected the token (invalid or expired). Enter a new one.',403:'This token can read the list but not write it. It needs Contents: Read and write on '+D.repo+'.',404:'GitHub returned 404. Usually the token has no access to the private repo '+D.repo+'.'}[s]||('GitHub error '+s+(j&&j.message?': '+j.message:''));const e=new Error(m);e.status=s;return e}
+function ghReq(method,url,body,accept){return fetch(GHAPI+url,{method,cache:'no-store',headers:Object.assign({'Authorization':'Bearer '+tokGet(),'Accept':accept||'application/vnd.github+json'},body?{'Content-Type':'application/json'}:{}),body:body?JSON.stringify(body):undefined})}
+async function readLive(){const r=await ghReq('GET',ghPath()+ghRef());let j={};try{j=await r.json()}catch(e){}if(r.status!==200)throw ghErr(r.status,j);
+  let txt;if(j.encoding==='base64'&&j.content)txt=b64dec(j.content);else{const r2=await ghReq('GET',ghPath()+ghRef(),null,'application/vnd.github.raw');if(!r2.ok)throw ghErr(r2.status,{});txt=await r2.text()}
+  const d=JSON.parse(txt);if(!Array.isArray(d.boards))d.boards=[];return{live:d,sha:j.sha}}
+function prep(live){const inc=JSON.parse(JSON.stringify(data));delete inc._base_sha;delete inc._panel_id;if('imports' in live)inc.imports=live.imports;inc.last_writer='panel:'+PID;return inc}
+const OFFLINE=()=>`Couldn’t reach GitHub from this page, so this is the list as of ${fmt(data.updated_at)}. Claude’s file preview blocks outside connections: download the file and open it in your browser to load the live list and save directly.`;
+function ghFail(e){if(e&&e.status){ui.gh.state='error';ui.gh.note={k:[401,403,404].includes(e.status)?'token':'err',msg:e.message}}else{ui.gh.state='offline';ui.gh.note={k:'info',msg:OFFLINE()}}}
+async function ghLoad(){if(!tokGet()){ui.gh.note={k:'token'};render();return}ui.gh.state='loading';render();
+  try{const{live,sha}=await readLive();live._base_sha=sha;live._panel_id=PID;data=live;CUR=data;ui.dirty=false;ui.sent=false;ui.edit=null;ui.confirm=null;
+    if(!data.boards.some(b=>b.id===ui.board))ui.board=data.boards[0]&&data.boards[0].id;
+    ui.gh.state='synced';ui.gh.at=new Date();if(ui.gh.note&&ui.gh.note.k!=='ok')ui.gh.note=null}
+  catch(e){ghFail(e)}render()}
+async function saveOnce(force){const{live,sha}=await readLive();const inc=prep(live),lines=tdDiff(live,inc),rev=ui.rev;
+  if(!force&&data._base_sha&&sha!==data._base_sha){ui.gh.state='conflict';ui.gh.note={k:'conflict',lines,writer:live.last_writer||'unknown'};return'done'}
+  if(!lines.length){data._base_sha=sha;if(ui.rev===rev)ui.dirty=false;ui.gh.state='synced';ui.gh.at=new Date();ui.gh.note={k:'ok',msg:'No changes since the last save; nothing committed.'};return'done'}
+  const body={message:'Update to-dos from panel\n\n'+lines.join('\n'),content:b64enc(JSON.stringify(inc,null,2)+'\n'),sha};if(D.branch)body.branch=D.branch;
+  const r=await ghReq('PUT',ghPath(),body);let j={};try{j=await r.json()}catch(e){}
+  if(r.status===409||r.status===422)return'race';
+  if(r.status!==200&&r.status!==201)throw ghErr(r.status,j);
+  data._base_sha=j.content.sha;data.last_writer=inc.last_writer;if('imports' in inc)data.imports=inc.imports;
+  if(ui.rev===rev)ui.dirty=false;ui.gh.state='synced';ui.gh.at=new Date();
+  ui.gh.note={k:'ok',lines,commit:{sha:j.commit.sha,url:j.commit.html_url},more:ui.dirty};return'done'}
+async function ghSave(force){if(busy)return;if(!tokGet()){ui.gh.note={k:'token',msg:'Add a GitHub token to save straight to GitHub.'};render();return}
+  busy=true;ui.gh.state='saving';ui.gh.note=null;render();
+  try{let r=await saveOnce(force);if(r==='race')r=await saveOnce(force);if(r==='race')throw ghErr(409,{message:'the list kept changing while saving; try again'})}
+  catch(e){if(e&&e.status)ghFail(e);else{ghFail(e);if(typeof sendPrompt==='function'){ui.gh.note={k:'info',msg:OFFLINE()+' The save message is below to paste into the chat instead.'};busy=false;legacySave();return}}}
+  finally{busy=false}render()}
+function legacySave(){ui.sent=true;ui.dirty=false;render();sendPrompt('Save my to-dos to GitHub:\n```json\n'+JSON.stringify(data)+'\n```')}
+function ghSync(){const g=ui.gh;
+  if(g.state==='loading')return['--text-muted','ti-loader-2','Loading live list…'];
+  if(g.state==='saving')return['--text-accent','ti-loader-2','Saving…'];
+  if(ui.sent)return['--text-accent','ti-loader-2','Sent for commit'];
+  if(g.state==='conflict')return['--text-danger','ti-alert-triangle','Conflict: not saved'];
+  if(ui.dirty)return['--text-warning','ti-point-filled','Unsaved changes'];
+  if(g.state==='error')return['--text-danger','ti-alert-circle','Not connected to GitHub'];
+  if(g.state==='synced')return['--text-success','ti-cloud-check','Synced with GitHub · '+g.at.toLocaleTimeString(undefined,{hour:'numeric',minute:'2-digit'})];
+  return['--text-muted','ti-cloud-off','Snapshot · '+fmt(data.updated_at)]}
+function ghNote(){const n=ui.gh.note;if(!D||!n)return'';const box=(bg,c,inner)=>`<div class="ghn" role="status" style="background:var(${bg});color:var(${c})">${inner}</div>`;
+  const list=ls=>`<ul>${ls.slice(0,60).map(l=>`<li>${esc(l)}</li>`).join('')}${ls.length>60?`<li>…and ${ls.length-60} more</li>`:''}</ul>`;
+  if(n.k==='token'){const has=!!tokGet();return box('--surface-1','--text-primary',`<p style="font-weight:500">GitHub token</p>${n.msg?`<p>${esc(n.msg)}</p>`:''}<div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center"><input type="password" data-token placeholder="${has?'Replace the saved token':'github_pat_…'}" autocomplete="off" spellcheck="false" aria-label="GitHub token"><button class="tb" data-act="tokset">Save token</button>${has?'<button class="tb warn" data-act="tokdel">Forget token</button>':''}<button class="tb" data-act="ghx">Close</button></div><p class="ghh">Needs Contents: Read and write on ${esc(D.repo)}. Kept in this browser only and sent only to api.github.com.</p>`)}
+  if(n.k==='conflict')return box('--bg-danger','--text-danger',`<p style="font-weight:500">Not saved: the list changed on GitHub after this page loaded (last write: ${esc(n.writer)}).</p><p style="color:var(--text-primary)">Saving now would make these changes, including undoing that other write:</p><div style="color:var(--text-primary)">${list(n.lines)}</div><div style="display:flex;gap:6px;flex-wrap:wrap"><button class="tb" data-act="ghreloadok">Load latest (discard my edits)</button><button class="tb warn" data-act="ghforce">Overwrite anyway</button><button class="tb" data-act="ghx">Cancel</button></div>`);
+  if(n.k==='ok'){if(!n.lines)return box('--bg-success','--text-success',`${esc(n.msg)} <button class="ib" data-act="ghx" aria-label="Dismiss" style="color:inherit">×</button>`);
+    return box('--bg-success','--text-success',`<div style="display:flex;align-items:center;gap:8px"><span style="font-weight:500">Saved to GitHub · ${n.lines.length} change${n.lines.length===1?'':'s'}</span><a href="${esc(n.commit.url)}" target="_blank" rel="noopener">commit ${esc(n.commit.sha.slice(0,7))} ↗</a><span style="flex:1"></span><button class="ib" data-act="ghx" aria-label="Dismiss" style="color:inherit">×</button></div>${n.more?'<p style="margin:6px 0 0">You made more edits while this was saving; save again to include them.</p>':''}<details style="margin-top:6px;color:var(--text-primary)"><summary style="cursor:pointer;font-size:12px">What changed</summary>${list(n.lines)}</details>`)}
+  return box(n.k==='err'?'--bg-danger':'--bg-warning',n.k==='err'?'--text-danger':'--text-warning',`<div style="display:flex;gap:8px;align-items:flex-start"><span style="flex:1">${esc(n.msg)}</span><button class="ib" data-act="ghx" aria-label="Dismiss" style="color:inherit">×</button></div>`)}
 function render(){
   const b=board();
-  const sync=ui.sent?['--text-accent','ti-loader-2','Sent for commit']:ui.dirty?['--text-warning','ti-point-filled','Unsaved changes']:['--text-success','ti-cloud-check','Synced with GitHub'];
+  const sync=D?ghSync():ui.sent?['--text-accent','ti-loader-2','Sent for commit']:ui.dirty?['--text-warning','ti-point-filled','Unsaved changes']:['--text-success','ti-cloud-check','Synced with GitHub'];
   let h=`<div style="display:flex;flex-wrap:wrap;gap:10px;align-items:center"><div class="seg">${data.boards.map(x=>x.id===ui.board&&ui.edit&&ui.edit.id===x.id?nameOrInput('board',x.id,x.name):`<button class="tab ${x.id===ui.board?'on':''}" data-act="board" data-id="${x.id}">${esc(x.name)}</button>`).join('')}<button class="tab" data-act="badd" aria-label="Add board"><i class="ti ti-plus" aria-hidden="true"></i></button></div>
   <span style="flex:1"></span>
   <span class="meta" style="color:var(${sync[0]})"><i class="ti ${sync[1]}" aria-hidden="true"></i>${sync[2]}</span>
-  <button data-act="save" style="font-size:13px;background:var(--fill-accent,var(--text-accent));color:var(--on-accent,#fff);border:none;padding:0 14px;height:32px;border-radius:8px"><i class="ti ti-brand-github" aria-hidden="true"></i> Save to GitHub ↗</button></div>`;
+  ${D?(ui.confirm==='reload'?`<button class="tb warn" data-act="ghreloadok">Discard edits &amp; reload</button>`:`<button class="tb" data-act="${ui.dirty?'ask':'ghreload'}" data-key="reload" title="Load the latest list from GitHub"><i class="ti ti-refresh" aria-hidden="true"></i> Reload</button>`)+`<button class="tb" data-act="tok" title="GitHub token for direct saves"><i class="ti ti-key" aria-hidden="true"></i> Token</button>`:''}
+  <button data-act="save" ${D&&(ui.gh.state==='saving'||ui.gh.state==='loading')?'disabled':''} style="font-size:13px;background:var(--fill-accent,var(--text-accent));color:var(--on-accent,#fff);border:none;padding:0 14px;height:32px;border-radius:8px"><i class="ti ti-brand-github" aria-hidden="true"></i> Save to GitHub${D?'':' ↗'}</button></div>${ghNote()}`;
   if(!b){h+=`<div class="sec" style="padding:2rem;text-align:center;margin-top:14px"><p style="margin:0 0 4px;font-weight:500">Create your first board</p><p style="margin:0 0 12px;font-size:13px;color:var(--text-secondary)">Boards hold sections, and sections hold tasks.</p><button data-act="badd">Add board</button></div>`;root.innerHTML=h;return}
   h+=stats(b);
   h+=`<div style="display:flex;align-items:center;gap:4px;margin-bottom:10px">${ui.edit&&ui.edit.id===b.id?'':`<span style="font-size:18px;font-weight:500;margin-right:4px">${esc(b.name)}</span>`}
@@ -113,19 +188,32 @@ root.addEventListener('click',e=>{const el=e.target.closest('[data-act]');if(!el
   else if(a==='clrdone'){const b=board();for(const s of b.sections){s.tasks=s.tasks.filter(t=>t.status!=="Done");for(const t of s.tasks)if(t.subtasks)t.subtasks=t.subtasks.filter(x=>x.status!=="Done")}ui.confirm=null;touch()}
   else if(a==='showdone'){ui.showDone=el.checked}
   else if(a==='filter'){const k=el.dataset.key;ui.filter=ui.filter===k?null:k}
-  else if(a==='save'){ui.sent=true;ui.dirty=false;render();sendPrompt('Save my to-dos to GitHub:\n```json\n'+JSON.stringify(data)+'\n```');return}
+  else if(a==='save'){if(D){ghSave(false);return}legacySave();return}
+  else if(a==='ghreload'){ghLoad();return}
+  else if(a==='ghreloadok'){ui.dirty=false;ui.confirm=null;ghLoad();return}
+  else if(a==='ghforce'){ghSave(true);return}
+  else if(a==='ghx'){ui.gh.note=null;if(ui.gh.state==='conflict')ui.gh.state='idle'}
+  else if(a==='tok'){ui.gh.note=ui.gh.note&&ui.gh.note.k==='token'?null:{k:'token'}}
+  else if(a==='tokset'){const inp=root.querySelector('[data-token]'),v=(inp&&inp.value||'').trim();if(!v)return;const kept=tokPut(v);
+    if(!kept){ui.gh.note={k:'info',msg:'This browser would not store the token, so it will be forgotten when the page closes.'}}else ui.gh.note=null;
+    if(!ui.dirty){ghLoad();if(!kept)ui.gh.note={k:'info',msg:'This browser would not store the token, so it will be forgotten when the page closes.'};return}ui.gh.state='idle'}
+  else if(a==='tokdel'){tokPut('');ui.gh.state='idle';ui.gh.note={k:'token',msg:'Token removed from this browser.'}}
   else return;
   render()});
 root.addEventListener('change',e=>{const el=e.target;if(!el.dataset.f)return;const {item}=findItem(el.dataset.id);if(!item)return;const f=el.dataset.f,v=el.value.trim();
   if(f==='title'&&!v){el.value=item.title;return}
   if((item[f]||'')===v)return;if(v)item[f]=v;else delete item[f];item.updated_at=now();touch();render()});
 root.addEventListener('keydown',e=>{const el=e.target;
+  if(el.dataset&&'token' in el.dataset){if(e.key==='Enter'){e.preventDefault();const b=root.querySelector('[data-act="tokset"]');if(b)b.click()}return}
   if(el.dataset.rename){if(e.key==='Enter')commitRename(el);else if(e.key==='Escape'){ui.edit=null;render()}return}
   if(el.dataset.add&&e.key==='Enter'){const v=el.value.trim();if(!v)return;const t={id:uid('t_'),title:v,status:"Not Started",updated_at:now()};
     if(el.dataset.add==='task'){t.subtasks=[];findSec(el.dataset.id).s.tasks.push(t)}else{const {item}=findItem(el.dataset.id);(item.subtasks=item.subtasks||[]).push(t)}
     ui.focus=el.dataset.id;touch();render()}});
 root.addEventListener('focusout',e=>{const el=e.target;if(el.dataset&&el.dataset.rename&&ui.edit)commitRename(el)});
 render();
+if(D){document.addEventListener('keydown',e=>{if((e.metaKey||e.ctrlKey)&&!e.shiftKey&&!e.altKey&&(e.key==='s'||e.key==='S')){e.preventDefault();ghSave(false)}});
+  window.addEventListener('beforeunload',e=>{if(ui.dirty||busy){e.preventDefault();e.returnValue=''}});
+  if(tokGet())ghLoad();else{ui.gh.note={k:'token',msg:'Add a GitHub token to load the live list and save straight to GitHub. Until then this is the list as of '+fmt(data.updated_at)+'. (Inside Claude’s preview this can’t connect; download the file and open it in your browser.)'};render()}}
 }
-window.TDPanel={mount:mount,version:1};
+window.TDPanel={mount:mount,version:2,diff:tdDiff,getData:()=>CUR};
 })();
