@@ -24,6 +24,7 @@ let data=DATA;CUR=data;
 const D=(OPTS&&OPTS.direct&&OPTS.direct.repo)?Object.assign({path:'todos.json'},OPTS.direct):null;
 const PID=(DATA._panel_id||'p')+(D?'.'+Math.random().toString(36).slice(2,6):'');
 if(D)data._panel_id=PID;
+const SHELL=!!(D&&DATA._shell);  /* no-data file: nothing is shown or editable until the live list loads */
 const TKEY='tdPanel.githubToken';let memTok='';
 const tokGet=()=>{try{return localStorage.getItem(TKEY)||memTok}catch(e){return memTok}};
 const tokPut=v=>{memTok=v||'';try{v?localStorage.setItem(TKEY,v):localStorage.removeItem(TKEY);return true}catch(e){return false}};
@@ -32,7 +33,7 @@ const SC={"Not Started":["--surface-1","--text-secondary","ti-circle-dashed"],"I
 const PCOL={"Critical":"#E24B4A","High":"#EF9F27","Medium":"#378ADD","Low":"#B4B2A9"};
 const SECCOL=["#7F77DD","#1D9E75","#D85A30","#D4537E","#378ADD","#BA7517","#639922"];
 const rgba=(h,a)=>{const n=parseInt(h.slice(1),16);return `rgba(${n>>16},${n>>8&255},${n&255},${a})`};
-const ui={board:data.boards[0]&&data.boards[0].id,open:new Set(),col:new Set(),edit:null,confirm:null,showDone:true,dirty:false,sent:false,focus:null,filter:null,rev:0,gh:{state:D?'idle':'',note:null,at:null}};
+const ui={board:data.boards[0]&&data.boards[0].id,open:new Set(),col:new Set(),edit:null,confirm:null,showDone:true,dirty:false,sent:false,focus:null,filter:null,rev:0,loaded:false,gh:{state:D?'idle':'',note:null,at:null}};
 const root=document.getElementById('td');
 const uid=p=>p+Math.random().toString(36).slice(2,10);
 const now=()=>new Date().toISOString();
@@ -98,12 +99,12 @@ async function readLive(){const r=await ghReq('GET',ghPath()+ghRef());let j={};t
   let txt;if(j.encoding==='base64'&&j.content)txt=b64dec(j.content);else{const r2=await ghReq('GET',ghPath()+ghRef(),null,'application/vnd.github.raw');if(!r2.ok)throw ghErr(r2.status,{});txt=await r2.text()}
   const d=JSON.parse(txt);if(!Array.isArray(d.boards))d.boards=[];return{live:d,sha:j.sha}}
 function prep(live){const inc=JSON.parse(JSON.stringify(data));delete inc._base_sha;delete inc._panel_id;if('imports' in live)inc.imports=live.imports;inc.last_writer='panel:'+PID;return inc}
-const OFFLINE=()=>`Couldn’t reach GitHub from this page, so this is the list as of ${fmt(data.updated_at)}. Claude’s file preview blocks outside connections: download the file and open it in your browser to load the live list and save directly.`;
+const OFFLINE=()=>SHELL&&!ui.loaded?`Couldn’t reach GitHub from this page, so there is nothing to show (this file holds no tasks). Claude’s file preview blocks outside connections: open the file in your browser.`:`Couldn’t reach GitHub from this page, so this is the list as of ${fmt(data.updated_at)}. Claude’s file preview blocks outside connections: download the file and open it in your browser to load the live list and save directly.`;
 function ghFail(e){if(e&&e.status){ui.gh.state='error';ui.gh.note={k:[401,403,404].includes(e.status)?'token':'err',msg:e.message}}else{ui.gh.state='offline';ui.gh.note={k:'info',msg:OFFLINE()}}}
 async function ghLoad(){if(!tokGet()){ui.gh.note={k:'token'};render();return}ui.gh.state='loading';render();
   try{const{live,sha}=await readLive();live._base_sha=sha;live._panel_id=PID;data=live;CUR=data;ui.dirty=false;ui.sent=false;ui.edit=null;ui.confirm=null;
     if(!data.boards.some(b=>b.id===ui.board))ui.board=data.boards[0]&&data.boards[0].id;
-    ui.gh.state='synced';ui.gh.at=new Date();if(ui.gh.note&&ui.gh.note.k!=='ok')ui.gh.note=null}
+    ui.loaded=true;ui.gh.state='synced';ui.gh.at=new Date();if(ui.gh.note&&ui.gh.note.k!=='ok')ui.gh.note=null}
   catch(e){ghFail(e)}render()}
 async function saveOnce(force){const{live,sha}=await readLive();const inc=prep(live),lines=tdDiff(live,inc),rev=ui.rev;
   if(!force&&data._base_sha&&sha!==data._base_sha){ui.gh.state='conflict';ui.gh.note={k:'conflict',lines,writer:live.last_writer||'unknown'};return'done'}
@@ -115,7 +116,7 @@ async function saveOnce(force){const{live,sha}=await readLive();const inc=prep(l
   data._base_sha=j.content.sha;data.last_writer=inc.last_writer;if('imports' in inc)data.imports=inc.imports;
   if(ui.rev===rev)ui.dirty=false;ui.gh.state='synced';ui.gh.at=new Date();
   ui.gh.note={k:'ok',lines,commit:{sha:j.commit.sha,url:j.commit.html_url},more:ui.dirty};return'done'}
-async function ghSave(force){if(busy)return;if(!tokGet()){ui.gh.note={k:'token',msg:'Add a GitHub token to save straight to GitHub.'};render();return}
+async function ghSave(force){if(busy)return;if(!data._base_sha){ui.gh.note={k:SHELL&&!ui.loaded&&!tokGet()?'token':'err',msg:'Nothing to save yet: load the list from GitHub first'+(tokGet()?'.':' (add your token).')};render();return}if(!tokGet()){ui.gh.note={k:'token',msg:'Add a GitHub token to save straight to GitHub.'};render();return}
   busy=true;ui.gh.state='saving';ui.gh.note=null;render();
   try{let r=await saveOnce(force);if(r==='race')r=await saveOnce(force);if(r==='race')throw ghErr(409,{message:'the list kept changing while saving; try again'})}
   catch(e){if(e&&e.status)ghFail(e);else{ghFail(e);if(typeof sendPrompt==='function'){ui.gh.note={k:'info',msg:OFFLINE()+' The save message is below to paste into the chat instead.'};busy=false;legacySave();return}}}
@@ -129,6 +130,7 @@ function ghSync(){const g=ui.gh;
   if(ui.dirty)return['--text-warning','ti-point-filled','Unsaved changes'];
   if(g.state==='error')return['--text-danger','ti-alert-circle','Not connected to GitHub'];
   if(g.state==='synced')return['--text-success','ti-cloud-check','Synced with GitHub · '+g.at.toLocaleTimeString(undefined,{hour:'numeric',minute:'2-digit'})];
+  if(SHELL&&!ui.loaded)return['--text-muted','ti-lock','Not loaded'];
   return['--text-muted','ti-cloud-off','Snapshot · '+fmt(data.updated_at)]}
 function ghNote(){const n=ui.gh.note;if(!D||!n)return'';const box=(bg,c,inner)=>`<div class="ghn" role="status" style="background:var(${bg});color:var(${c})">${inner}</div>`;
   const list=ls=>`<ul>${ls.slice(0,60).map(l=>`<li>${esc(l)}</li>`).join('')}${ls.length>60?`<li>…and ${ls.length-60} more</li>`:''}</ul>`;
@@ -138,6 +140,7 @@ function ghNote(){const n=ui.gh.note;if(!D||!n)return'';const box=(bg,c,inner)=>
     return box('--bg-success','--text-success',`<div style="display:flex;align-items:center;gap:8px"><span style="font-weight:500">Saved to GitHub · ${n.lines.length} change${n.lines.length===1?'':'s'}</span><a href="${esc(n.commit.url)}" target="_blank" rel="noopener">commit ${esc(n.commit.sha.slice(0,7))} ↗</a><span style="flex:1"></span><button class="ib" data-act="ghx" aria-label="Dismiss" style="color:inherit">×</button></div>${n.more?'<p style="margin:6px 0 0">You made more edits while this was saving; save again to include them.</p>':''}<details style="margin-top:6px;color:var(--text-primary)"><summary style="cursor:pointer;font-size:12px">What changed</summary>${list(n.lines)}</details>`)}
   return box(n.k==='err'?'--bg-danger':'--bg-warning',n.k==='err'?'--text-danger':'--text-warning',`<div style="display:flex;gap:8px;align-items:flex-start"><span style="flex:1">${esc(n.msg)}</span><button class="ib" data-act="ghx" aria-label="Dismiss" style="color:inherit">×</button></div>`)}
 function render(){
+  if(SHELL&&!ui.loaded){const sync=ghSync();root.innerHTML=`<div style="display:flex;flex-wrap:wrap;gap:10px;align-items:center"><span style="font-size:18px;font-weight:500">To-do list</span><span style="flex:1"></span><span class="meta" style="color:var(${sync[0]})"><i class="ti ${sync[1]}" aria-hidden="true"></i>${sync[2]}</span>${tokGet()?`<button class="tb" data-act="ghreload"><i class="ti ti-refresh" aria-hidden="true"></i> Load</button>`:''}<button class="tb" data-act="tok"><i class="ti ti-key" aria-hidden="true"></i> Token</button></div>${ghNote()}<div class="sec" style="padding:1.5rem;text-align:center;color:var(--text-secondary);font-size:13px;margin-top:14px">This file contains no tasks. With your GitHub token it loads the live list.</div>`;return}
   const b=board();
   const sync=D?ghSync():ui.sent?['--text-accent','ti-loader-2','Sent for commit']:ui.dirty?['--text-warning','ti-point-filled','Unsaved changes']:['--text-success','ti-cloud-check','Synced with GitHub'];
   let h=`<div style="display:flex;flex-wrap:wrap;gap:10px;align-items:center"><div class="seg">${data.boards.map(x=>x.id===ui.board&&ui.edit&&ui.edit.id===x.id?nameOrInput('board',x.id,x.name):`<button class="tab ${x.id===ui.board?'on':''}" data-act="board" data-id="${x.id}">${esc(x.name)}</button>`).join('')}<button class="tab" data-act="badd" aria-label="Add board"><i class="ti ti-plus" aria-hidden="true"></i></button></div>
@@ -197,7 +200,8 @@ root.addEventListener('click',e=>{const el=e.target.closest('[data-act]');if(!el
   else if(a==='tokset'){const inp=root.querySelector('[data-token]'),v=(inp&&inp.value||'').trim();if(!v)return;const kept=tokPut(v);
     if(!kept){ui.gh.note={k:'info',msg:'This browser would not store the token, so it will be forgotten when the page closes.'}}else ui.gh.note=null;
     if(!ui.dirty){ghLoad();if(!kept)ui.gh.note={k:'info',msg:'This browser would not store the token, so it will be forgotten when the page closes.'};return}ui.gh.state='idle'}
-  else if(a==='tokdel'){tokPut('');ui.gh.state='idle';ui.gh.note={k:'token',msg:'Token removed from this browser.'}}
+  else if(a==='tokdel'){tokPut('');ui.gh.state='idle';ui.gh.note={k:'token',msg:'Token removed from this browser.'};
+    if(SHELL){data={boards:[],_shell:true};CUR=data;ui.loaded=false;ui.dirty=false;ui.board=null;ui.gh.note.msg='Token removed from this browser and the list cleared from the page.'}}
   else return;
   render()});
 root.addEventListener('change',e=>{const el=e.target;if(!el.dataset.f)return;const {item}=findItem(el.dataset.id);if(!item)return;const f=el.dataset.f,v=el.value.trim();
@@ -213,7 +217,7 @@ root.addEventListener('focusout',e=>{const el=e.target;if(el.dataset&&el.dataset
 render();
 if(D){document.addEventListener('keydown',e=>{if((e.metaKey||e.ctrlKey)&&!e.shiftKey&&!e.altKey&&(e.key==='s'||e.key==='S')){e.preventDefault();ghSave(false)}});
   window.addEventListener('beforeunload',e=>{if(ui.dirty||busy){e.preventDefault();e.returnValue=''}});
-  if(tokGet())ghLoad();else{ui.gh.note={k:'token',msg:'Add a GitHub token to load the live list and save straight to GitHub. Until then this is the list as of '+fmt(data.updated_at)+'. (Inside Claude’s preview this can’t connect; download the file and open it in your browser.)'};render()}}
+  if(tokGet())ghLoad();else if(SHELL){ui.gh.note={k:'token',msg:'Add your GitHub token to load the list. This file stores no tasks; the token stays in this browser.'};render()}else{ui.gh.note={k:'token',msg:'Add a GitHub token to load the live list and save straight to GitHub. Until then this is the list as of '+fmt(data.updated_at)+'. (Inside Claude’s preview this can’t connect; download the file and open it in your browser.)'};render()}}
 }
 window.TDPanel={mount:mount,version:2,diff:tdDiff,getData:()=>CUR};
 })();
