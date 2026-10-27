@@ -1,14 +1,14 @@
 (function(){
 /* Change list, ported from todo_repo.diff() so the panel can show what a save will do. */
 const FIELDS=["title","status","priority","due_date","assignee","notes","cm","theme"];
-function tdIndex(d){const B={},S={},T={};for(const b of d.boards||[]){B[b.id]=b;for(const s of b.sections||[]){S[s.id]=[b.name,s];for(const t of s.tasks||[]){T[t.id]=[b.name+' / '+s.name,t];for(const st of t.subtasks||[])T[st.id]=[b.name+' / '+s.name+' > '+t.title,st]}}}return[B,S,T]}
+function tdIndex(d){const B={},S={},T={};for(const b of d.boards||[]){B[b.id]=b;for(const s of b.sections||[]){S[s.id]=[b.name,s];for(const t of s.tasks||[]){T[t.id]=[b.name+' / '+s.name,t,s.id+'|'];for(const st of t.subtasks||[])T[st.id]=[b.name+' / '+s.name+' > '+t.title,st,s.id+'|'+t.id]}}}return[B,S,T]}
 function tdDiff(o,n){const[ob,os,ot]=tdIndex(o),[nb,ns,nt]=tdIndex(n),L=[],nv=x=>x===undefined?null:x,v=x=>(x===undefined||x===null||x==='')?'-':x;
  for(const k in nb){if(!(k in ob))L.push(`Add board "${nb[k].name}"`);else if(ob[k].name!==nb[k].name)L.push(`Rename board "${ob[k].name}" -> "${nb[k].name}"`)}
  for(const k in ob)if(!(k in nb))L.push(`Delete board "${ob[k].name}"`);
  for(const k in ns){const[bn,s]=ns[k];if(!(k in os)){L.push(`Add section "${bn} / ${s.name}"`);continue}const o=os[k][1];
   if(o.name!==s.name)L.push(`Rename section "${o.name}" -> "${s.name}"`);if(nv(o.color)!==nv(s.color))L.push(`Recolor section "${s.name}"`);if(nv(o.cm)!==nv(s.cm))L.push(`Set C/M on section "${s.name}": ${v(o.cm)} -> ${v(s.cm)}`)}
  for(const k in os)if(!(k in ns)){const[bn,s]=os[k];L.push(`Delete section "${bn} / ${s.name}" (${(s.tasks||[]).length} task(s))`)}
- for(const k in nt){const[p,t]=nt[k];if(!(k in ot)){L.push(`Add "${t.title}" (${p})`);continue}const o=ot[k][1],ch=[];
+ for(const k in nt){const[p,t]=nt[k];if(!(k in ot)){L.push(`Add "${t.title}" (${p})`);continue}const[op,o,ol]=ot[k],ch=[];if(ol!==nt[k][2])L.push(`Move "${t.title}": ${op} -> ${p}`);
   for(const f of FIELDS)if(nv(o[f])!==nv(t[f]))ch.push(f==='notes'?'notes edited':`${f}: ${v(o[f])} -> ${v(t[f])}`);if(ch.length)L.push(`Update "${t.title}": `+ch.join('; '))}
  for(const k in ot)if(!(k in nt)){const[p,t]=ot[k];L.push(`Delete "${t.title}" (${p})`)}
  return L}
